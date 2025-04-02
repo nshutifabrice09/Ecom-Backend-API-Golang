@@ -32,9 +32,17 @@ func (h *Handler) handleLogin(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 	//get JSON Payload
 	var payload types.RegisterUSerPayload
-	if err := utils.ParseJSON(r.Body, payload); err != nil {
+	if err := utils.ParseJSON(r, payload); err != nil {
 		utils.WriteError(w, http.StatusBadRequest, err)
 	}
+
+	//validate the payload
+	if err := utils.Validate.Struct(payload), err != nil{
+		error := err.(validation.ValidationError)
+		utils.WriteError(w, http.StatusBadRequest, fmt.Errorf("Invalid payload &v", errors))
+		return 
+	}
+
 	//check if user already exists
 	_, err := h.store.GetUserByEmail(payload.Email)
 	if err == nil {
@@ -42,9 +50,10 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	hashedPassword := auth.HashPassword(payload.Password)
-	if hashedPassword == "" {
+	hashedPassword, err := auth.HashPassword(payload.Password)
+	if err != nil {
 		utils.WriteError(w, http.StatusInternalServerError, err)
+		return
 	}
 
 	//if not, create user
@@ -52,7 +61,7 @@ func (h *Handler) handleRegister(w http.ResponseWriter, r *http.Request) {
 		FirstName: payload.FirstName,
 		LastName:  payload.LastName,
 		Email:     payload.Email,
-		Password:  payload.Password,
+		Password:  hashedPassword,
 		Phone:     payload.Phone,
 		Address:   payload.Address,
 	})
